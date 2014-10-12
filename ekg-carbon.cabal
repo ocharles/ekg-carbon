@@ -1,5 +1,5 @@
 name: ekg-carbon
-version: 1.0.1
+version: 1.0.2
 synopsis: An EKG backend to send statistics to Carbon (part of Graphite monitoring tools)
 homepage: http://github.com/ocharles/ekg-carbon
 license: BSD3
