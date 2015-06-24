@@ -1,3 +1,11 @@
+## 1.0.3
+
+* Increased upper-bounds of:
+
+      * `base`
+      * `time`
+
+
 ## 1.0.2
 
 * Increased upper-bounds of:
