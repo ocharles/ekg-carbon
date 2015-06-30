@@ -16,10 +16,13 @@ module System.Remote.Monitoring.Carbon
   , forkCarbon
   ) where
 
-import Control.Concurrent (ThreadId, forkFinally, myThreadId, threadDelay, throwTo)
-import Control.Monad (forever)
+
+import Control.Exception (catch, SomeException)
+import Control.Concurrent (ThreadId, forkIO, forkFinally, threadDelay)
+import Control.Monad (forever, void)
 import Data.Int (Int64)
 import Data.Monoid ((<>))
+import System.IO (stderr, hPutStrLn)
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
@@ -85,20 +88,28 @@ forkCarbon opts store = do
   addrInfos <- Network.getAddrInfo Nothing
                                    (Just $ T.unpack $ host opts)
                                    (Just $ show $ port opts)
-  c <- case addrInfos of
-    (addrInfo : _) -> Carbon.connect (Network.addrAddress addrInfo)
+  case addrInfos of
+    (addrInfo : _) -> forkIO $ void $ forkCarbon' addrInfo
     _ -> unsupportedAddressError
-
-  parent <- myThreadId
-  forkFinally (loop store c opts)
-              (\r -> do Carbon.disconnect c
-                        case r of
-                          Left e  -> throwTo parent e
-                          Right _ -> return ())
-
   where
   unsupportedAddressError = ioError $ userError $
       "unsupported address: " ++ T.unpack (host opts)
+
+  forkCarbon' addrInfo = forkCarbon'' `catch` err
+    where
+    forkCarbon'' = do
+      c <- Carbon.connect (Network.addrAddress addrInfo)
+      forkFinally (loop store c opts)
+                  (\r -> do Carbon.disconnect c
+                            case r of
+                              Left e  -> void $ err e
+                              Right _ -> return ())
+
+    err :: SomeException -> IO (ThreadId)
+    err e = do
+      hPutStrLn stderr $ "ekg-carbon: " ++ show e
+      threadDelay $ flushInterval opts * 1000
+      forkCarbon' addrInfo
 
 
 --------------------------------------------------------------------------------
