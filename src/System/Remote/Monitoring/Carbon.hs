@@ -14,9 +14,11 @@ module System.Remote.Monitoring.Carbon
   ( CarbonOptions(..)
   , defaultCarbonOptions
   , forkCarbon
+  , forkCarbonRestart
   ) where
 
-import Control.Concurrent (ThreadId, forkFinally, myThreadId, threadDelay, throwTo)
+import Control.Exception (SomeException, try)
+import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Control.Monad (forever)
 import Data.Int (Int64)
 import Data.Monoid ((<>))
@@ -79,26 +81,55 @@ defaultCarbonOptions = CarbonOptions
 
 --------------------------------------------------------------------------------
 -- | Create a thread that periodically flushes the metrics in 'EKG.Store' to
--- Carbon.
+-- Carbon. If the thread flushing statistics throws an exception (for example, the
+-- network connection is lost), this exception will be thrown up to the thread
+-- that called 'forkCarbon'. For more control, see 'forkCarbonRestart'.
 forkCarbon :: CarbonOptions -> EKG.Store -> IO (ThreadId)
-forkCarbon opts store = do
-  addrInfos <- Network.getAddrInfo Nothing
-                                   (Just $ T.unpack $ host opts)
-                                   (Just $ show $ port opts)
-  c <- case addrInfos of
-    (addrInfo : _) -> Carbon.connect (Network.addrAddress addrInfo)
-    _ -> unsupportedAddressError
+forkCarbon opts store =
+  do parent <- myThreadId
+     forkCarbonRestart opts
+                       store
+                       (\e _ -> throwTo parent e)
 
-  parent <- myThreadId
-  forkFinally (loop store c opts)
-              (\r -> do Carbon.disconnect c
-                        case r of
-                          Left e  -> throwTo parent e
-                          Right _ -> return ())
-
-  where
-  unsupportedAddressError = ioError $ userError $
-      "unsupported address: " ++ T.unpack (host opts)
+--------------------------------------------------------------------------------
+-- | Create a thread that periodically flushes the metrics in 'EKG.Store' to
+-- Carbon. If the thread flushing statistics throws an exception (for example, the
+-- network connection is lost), the callback function will be invoked with the
+-- exception that was thrown, and an 'IO' computation to restart the handler.
+--
+-- For example, you can use 'forkCarbonRestart' to log failures and restart
+-- logging:
+--
+-- @
+-- 'forkCarbonRestart' opts
+--                     store
+--                     (\ex restart -> do hPutStrLn stderr ("ekg-carbon: " ++ show ex)
+--                                        restart)
+-- @
+forkCarbonRestart :: CarbonOptions
+                  -> EKG.Store
+                  -> (SomeException -> IO () -> IO ())
+                  -> IO ThreadId
+forkCarbonRestart opts store exceptionHandler =
+  do addrInfos <-
+       Network.getAddrInfo Nothing
+                           (Just (T.unpack (host opts)))
+                           (Just (show (port opts)))
+     c <-
+       case addrInfos of
+         (addrInfo:_) ->
+           Carbon.connect (Network.addrAddress addrInfo)
+         _ -> unsupportedAddressError
+     let go =
+           do terminated <-
+                try (loop store c opts)
+              case terminated of
+                Left exception ->
+                  exceptionHandler exception go
+                Right _ -> go
+     forkIO go
+  where unsupportedAddressError =
+          ioError (userError ("unsupported address: " ++ T.unpack (host opts)))
 
 
 --------------------------------------------------------------------------------
