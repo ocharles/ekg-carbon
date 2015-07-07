@@ -115,14 +115,15 @@ forkCarbonRestart opts store exceptionHandler =
        Network.getAddrInfo Nothing
                            (Just (T.unpack (host opts)))
                            (Just (show (port opts)))
-     c <-
+     addrInfo <-
        case addrInfos of
-         (addrInfo:_) ->
-           Carbon.connect (Network.addrAddress addrInfo)
+         (addrInfo:_) -> return $ Network.addrAddress addrInfo
          _ -> unsupportedAddressError
      let go =
-           do terminated <-
-                try (loop store c opts)
+           do
+              terminated <- try $ do
+                c <- Carbon.connect addrInfo
+                loop store c opts
               case terminated of
                 Left exception ->
                   exceptionHandler exception go
