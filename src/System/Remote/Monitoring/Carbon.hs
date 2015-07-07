@@ -84,7 +84,7 @@ defaultCarbonOptions = CarbonOptions
 -- Carbon. If the thread flushing statistics throws an exception (for example, the
 -- network connection is lost), this exception will be thrown up to the thread
 -- that called 'forkCarbon'. For more control, see 'forkCarbonRestart'.
-forkCarbon :: CarbonOptions -> EKG.Store -> IO (ThreadId)
+forkCarbon :: CarbonOptions -> EKG.Store -> IO ThreadId
 forkCarbon opts store =
   do parent <- myThreadId
      forkCarbonRestart opts
