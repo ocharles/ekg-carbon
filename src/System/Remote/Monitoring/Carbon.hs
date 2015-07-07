@@ -17,7 +17,7 @@ module System.Remote.Monitoring.Carbon
   , forkCarbonRestart
   ) where
 
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, try, bracket)
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Control.Monad (forever)
 import Data.Int (Int64)
@@ -84,7 +84,7 @@ defaultCarbonOptions = CarbonOptions
 -- Carbon. If the thread flushing statistics throws an exception (for example, the
 -- network connection is lost), this exception will be thrown up to the thread
 -- that called 'forkCarbon'. For more control, see 'forkCarbonRestart'.
-forkCarbon :: CarbonOptions -> EKG.Store -> IO (ThreadId)
+forkCarbon :: CarbonOptions -> EKG.Store -> IO ThreadId
 forkCarbon opts store =
   do parent <- myThreadId
      forkCarbonRestart opts
@@ -115,14 +115,16 @@ forkCarbonRestart opts store exceptionHandler =
        Network.getAddrInfo Nothing
                            (Just (T.unpack (host opts)))
                            (Just (show (port opts)))
-     c <-
+     addrInfo <-
        case addrInfos of
-         (addrInfo:_) ->
-           Carbon.connect (Network.addrAddress addrInfo)
+         (addrInfo:_) -> return $ Network.addrAddress addrInfo
          _ -> unsupportedAddressError
      let go =
            do terminated <-
-                try (loop store c opts)
+                try $ bracket
+                  (Carbon.connect addrInfo)
+                  Carbon.disconnect
+                  (loop store opts)
               case terminated of
                 Left exception ->
                   exceptionHandler exception go
@@ -133,8 +135,8 @@ forkCarbonRestart opts store exceptionHandler =
 
 
 --------------------------------------------------------------------------------
-loop :: EKG.Store -> Carbon.Connection -> CarbonOptions -> IO ()
-loop store socket opts = forever $ do
+loop :: EKG.Store -> CarbonOptions -> Carbon.Connection -> IO ()
+loop store opts socket = forever $ do
   start <- time
   sample <- EKG.sampleAll store
   flushSample sample socket opts
