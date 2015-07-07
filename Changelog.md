@@ -1,3 +1,7 @@
+## 1.0.4
+
+* Added `forkCarbonRestart`, which allows caller's to have a little more control over what happens when the Carbon thread crashes.
+
 ## 1.0.3
 
 * Increased upper-bounds of:
