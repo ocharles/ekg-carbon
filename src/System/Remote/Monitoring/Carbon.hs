@@ -17,7 +17,7 @@ module System.Remote.Monitoring.Carbon
   , forkCarbonRestart
   ) where
 
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, try, bracket)
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Control.Monad (forever)
 import Data.Int (Int64)
@@ -120,10 +120,11 @@ forkCarbonRestart opts store exceptionHandler =
          (addrInfo:_) -> return $ Network.addrAddress addrInfo
          _ -> unsupportedAddressError
      let go =
-           do
-              terminated <- try $ do
-                c <- Carbon.connect addrInfo
-                loop store c opts
+           do terminated <-
+                try $ bracket
+                  (Carbon.connect addrInfo)
+                  Carbon.disconnect
+                  (loop store opts)
               case terminated of
                 Left exception ->
                   exceptionHandler exception go
@@ -134,8 +135,8 @@ forkCarbonRestart opts store exceptionHandler =
 
 
 --------------------------------------------------------------------------------
-loop :: EKG.Store -> Carbon.Connection -> CarbonOptions -> IO ()
-loop store socket opts = forever $ do
+loop :: EKG.Store -> CarbonOptions -> Carbon.Connection -> IO ()
+loop store opts socket = forever $ do
   start <- time
   sample <- EKG.sampleAll store
   flushSample sample socket opts
