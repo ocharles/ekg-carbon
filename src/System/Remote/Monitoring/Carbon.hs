@@ -100,12 +100,10 @@ forkCarbon opts store =
 -- For example, you can use 'forkCarbonRestart' to log failures and restart
 -- logging:
 --
--- @
--- 'forkCarbonRestart' opts
---                     store
---                     (\ex restart -> do hPutStrLn stderr ("ekg-carbon: " ++ show ex)
---                                        restart)
--- @
+-- > forkCarbonRestart defaultCarbonOptions
+-- >                   store
+-- >                   (\ex restart -> do hPutStrLn stderr ("ekg-carbon: " ++ show ex)
+-- >                                      restart)
 forkCarbonRestart :: CarbonOptions
                   -> EKG.Store
                   -> (SomeException -> IO () -> IO ())
