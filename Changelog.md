@@ -1,3 +1,9 @@
+## 1.0.5
+
+* Increased upper-bounds of:
+
+      * `vector`
+
 ## 1.0.4
 
 * Added `forkCarbonRestart`, which allows caller's to have a little more control over what happens when the Carbon thread crashes.
