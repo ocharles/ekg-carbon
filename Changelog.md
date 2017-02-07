@@ -1,3 +1,10 @@
+## 1.0.6
+
+### Non-breaking Changes
+
+* Increased the upper bound of `base`, `time` and `vector`.
+  This is a minor version bump as `vector` has changed contexts for instances.
+
 ## 1.0.5
 
 * Increased upper-bounds of:
