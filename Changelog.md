@@ -1,8 +1,17 @@
+## Unreleased
+
+### Other Changes
+
+- Increased upper bound of `base` to allow < 4.13.
+- Increased upper bound of `network` to allow < 2.9.
+
+---
+
 ## 1.0.10
 
 ### Other Changes
 
-- Increased upper bound of `base` to allow < 1.12.
+- Increased upper bound of `base` to allow < 4.12.
 - Increased upper bound of `network` to allow < 2.8.
 
 ---
